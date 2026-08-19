@@ -6,6 +6,11 @@ on:
     paths:
       - 'civitaxi/**'
       - '.github/workflows/civitaxi-apk.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'civitaxi/**'
+      - '.github/workflows/civitaxi-apk.yml'
   workflow_dispatch:
 
 permissions:
@@ -58,6 +63,7 @@ jobs:
             dist/CiviTaxi-SHA256SUMS.txt
 
       - name: Guardar APKs en repositorio
+        if: github.event_name == 'push'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
