@@ -1,0 +1,3 @@
+08a8a81ac9e45a4796695905ddf679db132b02a5c29ee6b68116becaa7bb825f  dist/CiviTaxi-Administrador.apk
+f6089bc3c281c7503c0377d9adb489a492c445ec66ce54d0bec5568ee62d17a3  dist/CiviTaxi-Chofer.apk
+96010b52f7799f2626bdddd777a362b4de5f3a3cf62caa915b824283efe7451e  dist/CiviTaxi-Usuario.apk
