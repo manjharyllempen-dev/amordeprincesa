@@ -2,7 +2,7 @@ name: CiviTaxi - Compilar APKs
 
 on:
   push:
-    branches: [civitaxi-build]
+    branches: [main, civitaxi-build]
     paths:
       - 'civitaxi/**'
       - '.github/workflows/civitaxi-apk.yml'
@@ -17,8 +17,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: civitaxi-build
 
       - name: Java 17
         uses: actions/setup-java@v4
@@ -47,19 +45,23 @@ jobs:
           cp civitaxi/usuario/build/outputs/apk/debug/usuario-debug.apk dist/CiviTaxi-Usuario.apk
           cp civitaxi/chofer/build/outputs/apk/debug/chofer-debug.apk dist/CiviTaxi-Chofer.apk
           cp civitaxi/administrador/build/outputs/apk/debug/administrador-debug.apk dist/CiviTaxi-Administrador.apk
-          sha256sum dist/*.apk > dist/SHA256SUMS.txt
+          sha256sum dist/CiviTaxi-*.apk > dist/CiviTaxi-SHA256SUMS.txt
 
       - name: Publicar artefactos
         uses: actions/upload-artifact@v4
         with:
           name: CiviTaxi-3-APK
-          path: dist/*
+          path: |
+            dist/CiviTaxi-Usuario.apk
+            dist/CiviTaxi-Chofer.apk
+            dist/CiviTaxi-Administrador.apk
+            dist/CiviTaxi-SHA256SUMS.txt
 
-      - name: Guardar APKs en rama
+      - name: Guardar APKs en repositorio
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f dist/*.apk dist/SHA256SUMS.txt
+          git add -f dist/CiviTaxi-*.apk dist/CiviTaxi-SHA256SUMS.txt
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'build: publicar APKs CiviTaxi [skip ci]'
-          git push origin HEAD:civitaxi-build
+          git push
