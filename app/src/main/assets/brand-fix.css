@@ -1,13 +1,68 @@
-/* Marca HD visible en splash y en todas las pantallas */
-#splash{padding:18px;background:#fff;overflow:auto}
-#splash .splash-logo-hd,#splash img{width:min(94vw,620px)!important;height:auto!important;max-height:88vh!important;object-fit:contain!important;display:block!important;image-rendering:auto!important;filter:none!important;opacity:1!important}
-.head{height:78px!important;padding:8px 10px!important}
-.head .head-logo-hd,.head img{width:62px!important;height:62px!important;object-fit:contain!important;background:#fff!important;border-radius:12px!important;padding:2px!important;image-rendering:auto!important}
-.screen-brand-logo{display:block!important;width:min(72vw,300px)!important;height:auto!important;max-height:230px!important;object-fit:contain!important;margin:2px auto 10px!important;background:#fff!important;border-radius:16px!important;padding:3px!important;image-rendering:auto!important;filter:none!important;opacity:1!important}
-.hero img{width:min(78vw,330px)!important;max-height:330px!important;height:auto!important;object-fit:contain!important;image-rendering:auto!important}
+/* Logo visible y navegación móvil */
+#splash{padding:12px;background:#fff;overflow:hidden}
+#splash .splash-logo-hd,#splash img{
+  width:min(92vw,520px)!important;
+  height:auto!important;
+  max-width:none!important;
+  max-height:88vh!important;
+  object-fit:contain!important;
+  display:block!important;
+  image-rendering:auto!important;
+  filter:none!important;
+  opacity:1!important;
+}
+.head{height:96px!important;padding:8px 12px!important;gap:12px!important}
+.head .head-logo-hd,.head img{
+  width:80px!important;
+  height:80px!important;
+  object-fit:contain!important;
+  background:#fff!important;
+  border-radius:16px!important;
+  padding:2px!important;
+  image-rendering:auto!important;
+  opacity:1!important;
+}
+.head b{font-size:18px!important}
+.screen-brand-logo{
+  display:block!important;
+  width:min(78vw,330px)!important;
+  height:auto!important;
+  max-height:300px!important;
+  object-fit:contain!important;
+  margin:4px auto 14px!important;
+  background:#fff!important;
+  border-radius:18px!important;
+  padding:4px!important;
+  image-rendering:auto!important;
+  filter:none!important;
+  opacity:1!important;
+}
+.hero img{
+  width:min(80vw,340px)!important;
+  max-width:340px!important;
+  max-height:340px!important;
+  height:auto!important;
+  object-fit:contain!important;
+  image-rendering:auto!important;
+}
+.bottom{height:72px!important;min-height:72px!important;padding:6px 8px max(6px,env(safe-area-inset-bottom))!important;gap:5px!important}
+.bottom button{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:2px!important;
+  min-width:0!important;
+  padding:5px 2px!important;
+  border-radius:12px!important;
+  font-size:10px!important;
+}
+.bottom .nav-icon{font-size:20px!important;line-height:20px!important;font-weight:700!important}
+.app{padding-bottom:82px!important}
 details summary{cursor:pointer;padding:4px 0}
 @media(max-width:360px){
- #splash .splash-logo-hd,#splash img{width:96vw!important;max-height:84vh!important}
- .screen-brand-logo{width:min(82vw,290px)!important;max-height:220px!important}
- .head{height:70px!important}.head .head-logo-hd,.head img{width:54px!important;height:54px!important}
+ #splash .splash-logo-hd,#splash img{width:94vw!important;max-height:84vh!important}
+ .screen-brand-logo{width:min(86vw,310px)!important;max-height:280px!important}
+ .head{height:86px!important}.head .head-logo-hd,.head img{width:70px!important;height:70px!important}
+ .bottom button{font-size:9px!important}.bottom .nav-icon{font-size:18px!important}
 }
