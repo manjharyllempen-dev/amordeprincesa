@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,11 +36,22 @@ jobs:
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
 
-      - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk AmorDePrincesa-demo.apk
+      - name: Prepare APK
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/AmorDePrincesa-demo.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: AmorDePrincesa-APK
-          path: AmorDePrincesa-demo.apk
+          path: dist/AmorDePrincesa-demo.apk
+
+      - name: Publish APK in repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f dist/AmorDePrincesa-demo.apk
+          git diff --cached --quiet && exit 0
+          git commit -m "build: publicar APK demo [skip ci]"
+          git push
