@@ -1,0 +1,1 @@
+(()=>{const fix=()=>{document.querySelectorAll('img').forEach(img=>{const src=img.getAttribute('src')||'';if(src.endsWith('logo.png')){img.setAttribute('src','logo.webp');img.style.imageRendering='auto';}})};fix();new MutationObserver(fix).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});})();
