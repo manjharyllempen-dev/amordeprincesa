@@ -50,7 +50,6 @@ window.registerAdmin=async function(){
   }catch(e){ if(box) box.innerHTML=msg(e.message,'err'); }
 };
 
-const oldLogin=window.login;
 window.login=async function(admin=false){
   const emailEl=document.getElementById(admin?'aemail':'lemail');
   const passEl=document.getElementById(admin?'apass':'lpass');
@@ -104,17 +103,32 @@ function applyBigBranding(){
   const splash=document.getElementById('splash');
   if(splash){
     const img=splash.querySelector('img');
-    if(img){ img.src='logo.webp'; img.classList.add('splash-logo-hd'); }
+    if(img){ img.src='logo_hd.jpg'; img.className='splash-logo-hd'; }
   }
-  document.querySelectorAll('.head img').forEach(img=>{img.src='logo.webp';img.classList.add('head-logo-hd')});
-  document.querySelectorAll('.screen').forEach(sec=>{
-    if(!sec.querySelector(':scope > .screen-brand-logo')){
-      const img=document.createElement('img');
-      img.src='logo.webp'; img.alt='Amor de Princesa'; img.className='screen-brand-logo';
-      sec.insertBefore(img,sec.firstChild);
-    }
+
+  const head=document.querySelector('.head');
+  const headImg=head?.querySelector('img');
+  if(headImg){ headImg.src='logo_hd.jpg'; headImg.className='head-logo-hd'; }
+
+  const sec=document.querySelector('#main .screen');
+  if(!sec) return;
+
+  sec.querySelectorAll('.screen-brand-logo').forEach(el=>el.remove());
+
+  const isHome=(typeof i!=='undefined' && i===0) || sec.querySelector('h1')?.textContent.trim()==='Bienvenida';
+  if(head) head.style.display=isHome?'none':'flex';
+
+  if(isHome){
+    const img=document.createElement('img');
+    img.src='logo_hd.jpg';
+    img.alt='Amor de Princesa';
+    img.className='screen-brand-logo home-brand-logo';
+    sec.insertBefore(img,sec.firstChild);
+  }
+
+  document.querySelectorAll('img[src="logo.png"],img[src="logo.webp"]').forEach(img=>{
+    if(!img.closest('.screen') || !isHome) img.src='logo_hd.jpg';
   });
-  document.querySelectorAll('img[src="logo.png"]').forEach(img=>img.src='logo.webp');
 }
 
 function patchAdminAccess(){
@@ -123,8 +137,7 @@ function patchAdminAccess(){
   const sec=h.closest('.screen');
   if(!sec||sec.dataset.adminAccessFixed==='1') return;
   sec.dataset.adminAccessFixed='1';
-  sec.innerHTML=`<img src="logo.webp" class="screen-brand-logo" alt="Amor de Princesa">
-  <div class="small">Pantalla 13 de 23</div><h1>Acceso administrador</h1>
+  sec.innerHTML=`<div class="small">Pantalla 13 de 23</div><h1>Acceso administrador</h1>
   <p class="small">Ingresá con tu cuenta administradora o creala por primera vez.</p>
   <div class="card admin"><b>Ingresar</b>
     <input id="aemail" type="email" placeholder="Correo administrador">
@@ -147,4 +160,4 @@ function patchAdminAccess(){
 
 const brandObserver=new MutationObserver(()=>{applyBigBranding();patchAdminAccess()});
 brandObserver.observe(document.getElementById('main'),{childList:true,subtree:true});
-setTimeout(()=>{applyBigBranding();patchAdminAccess()},50);
+setTimeout(()=>{applyBigBranding();patchAdminAccess()},30);
