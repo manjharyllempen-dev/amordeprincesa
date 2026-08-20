@@ -2,7 +2,7 @@ name: Build Amor de Princesa APK
 
 on:
   push:
-    branches: [ amor-de-princesa-fresh ]
+    branches: [ amor-de-princesa-fresh, main ]
   workflow_dispatch:
 
 permissions:
