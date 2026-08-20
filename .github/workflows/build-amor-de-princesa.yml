@@ -1,0 +1,47 @@
+name: Build Amor de Princesa APK
+
+on:
+  push:
+    branches: [ amor-de-princesa-fresh ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Setup Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        run: gradle -p AmorDePrincesaFresh :app:assembleDebug --stacktrace
+
+      - name: Publish APK
+        run: |
+          mkdir -p dist
+          cp AmorDePrincesaFresh/app/build/outputs/apk/debug/app-debug.apk dist/AmorDePrincesa-fresh.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f dist/AmorDePrincesa-fresh.apk
+          git diff --cached --quiet && exit 0
+          git commit -m "build: publicar Amor de Princesa APK [skip ci]"
+          git push
