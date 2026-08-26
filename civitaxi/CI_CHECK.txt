@@ -1,0 +1,1 @@
+Verificación de compilación de los tres APK.
