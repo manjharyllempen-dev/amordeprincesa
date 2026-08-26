@@ -1,0 +1,1 @@
+Verificación CI del nuevo splash con mototaxi amarillo/negro.
