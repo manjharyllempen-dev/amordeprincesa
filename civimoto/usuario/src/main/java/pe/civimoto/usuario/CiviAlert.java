@@ -8,7 +8,6 @@ import android.media.ToneGenerator;
 import android.os.Build;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
-import androidx.annotation.Nullable;
 
 public class CiviAlert {
     private static final String CHANNEL="civimoto_passenger_alerts";
