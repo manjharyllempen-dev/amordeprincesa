@@ -27,7 +27,7 @@ public class PreciseLiveRatingActivity extends LiveRatingActivity {
     private Object field(String name){try{Field f=FlowActivity.class.getDeclaredField(name);f.setAccessible(true);return f.get(this);}catch(Exception e){return null;}}
     private void field(String name,Object value){try{Field f=FlowActivity.class.getDeclaredField(name);f.setAccessible(true);f.set(this,value);}catch(Exception ignored){}}
     private double dbl(String name,double fallback){try{Field f=FlowActivity.class.getDeclaredField(name);f.setAccessible(true);return f.getDouble(this);}catch(Exception e){return fallback;}}
-    private void dbl(String name,double value){try{Field f=FlowActivity.class.getDeclaredField(name);f.setAccessible(true);f.setDouble(this,value);}catch(Exception ignored){}}
+    private void setDbl(String name,double value){try{Field f=FlowActivity.class.getDeclaredField(name);f.setAccessible(true);f.setDouble(this,value);}catch(Exception ignored){}}
     private void bool(String name,boolean value){try{Field f=FlowActivity.class.getDeclaredField(name);f.setAccessible(true);f.setBoolean(this,value);}catch(Exception ignored){}}
     private Backend backend(){return (Backend)field("backend");}
 
@@ -64,7 +64,7 @@ public class PreciseLiveRatingActivity extends LiveRatingActivity {
 
                 final double foLat=oLat,foLng=oLng,fdLat=dLat,fdLng=dLng;
                 final String displayDestination=resolvedDestination;
-                dbl("lat",foLat);dbl("lng",foLng);dbl("dlat",fdLat);dbl("dlng",fdLng);bool("destReady",true);
+                setDbl("lat",foLat);setDbl("lng",foLng);setDbl("dlat",fdLat);setDbl("dlng",fdLng);bool("destReady",true);
                 runOnUiThread(()->{
                     WebView map=(WebView)field("map");
                     if(map!=null)map.evaluateJavascript("setMe("+foLng+","+foLat+");drawRoute("+foLng+","+foLat+","+fdLng+","+fdLat+")",null);
@@ -99,9 +99,7 @@ public class PreciseLiveRatingActivity extends LiveRatingActivity {
         if(!low.contains("perú")&&!low.contains("peru"))q=q+", Perú";
         Geocoder g=new Geocoder(this,new Locale("es","PE"));
         List<Address> list=g.getFromLocationName(q,10,TRU_LLAT,TRU_LLNG,TRU_ULAT,TRU_ULNG);
-        if(list==null||list.isEmpty()){
-            list=g.getFromLocationName(raw+", Trujillo, La Libertad, Perú",10);
-        }
+        if(list==null||list.isEmpty())list=g.getFromLocationName(raw+", Trujillo, La Libertad, Perú",10);
         if(list==null||list.isEmpty())throw new Exception("Dirección no encontrada");
         Address best=null;double bestScore=-1e9;String number=extractNumber(raw);List<String> tokens=tokens(raw);
         for(Address a:list){
