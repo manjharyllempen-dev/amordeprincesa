@@ -5,7 +5,7 @@
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application android:label="CiviMoto Pasajero" android:icon="@drawable/logo_civimoto" android:roundIcon="@drawable/logo_civimoto" android:theme="@android:style/Theme.Material.NoActionBar" android:hardwareAccelerated="true">
-        <activity android:name=".LiveRatingActivity" android:screenOrientation="portrait" android:exported="true">
+        <activity android:name=".PassengerDocumentActivity" android:screenOrientation="portrait" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
