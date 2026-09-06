@@ -19,7 +19,6 @@
             </intent-filter>
         </activity>
         <service android:name=".DriverAlertService" android:foregroundServiceType="location" android:exported="false" android:stopWithTask="false"/>
-        <service android:name=".ReliableDriverAlertService" android:foregroundServiceType="location" android:exported="false" android:stopWithTask="false"/>
         <receiver android:name=".DriverServiceReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
