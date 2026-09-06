@@ -12,7 +12,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <application android:label="CiviMoto Conductor" android:icon="@drawable/logo_civimoto" android:roundIcon="@drawable/logo_civimoto" android:theme="@android:style/Theme.Material.NoActionBar" android:hardwareAccelerated="true">
-        <activity android:name=".ReliableDriverActivity" android:screenOrientation="portrait" android:launchMode="singleTop" android:exported="true">
+        <activity android:name=".DriverProfileActivity" android:screenOrientation="portrait" android:launchMode="singleTop" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
