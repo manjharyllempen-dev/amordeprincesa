@@ -1,0 +1,47 @@
+name: CiviMoto - Validar proyecto independiente
+
+on:
+  push:
+    branches: [civimoto-independent]
+    paths:
+      - 'civimoto/**'
+      - '.github/workflows/civimoto-independent.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Instalar Android 35
+        run: yes | sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'platform-tools'
+      - name: Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Compilar tres APK CiviMoto independiente
+        working-directory: civimoto
+        run: gradle :usuario:assembleDebug :chofer:assembleDebug :administrador:assembleDebug --stacktrace
+      - name: Preparar validación
+        run: |
+          mkdir -p dist-independent
+          cp civimoto/usuario/build/outputs/apk/debug/usuario-debug.apk dist-independent/CiviMoto-Pasajero-Independent.apk
+          cp civimoto/chofer/build/outputs/apk/debug/chofer-debug.apk dist-independent/CiviMoto-Chofer-Independent.apk
+          cp civimoto/administrador/build/outputs/apk/debug/administrador-debug.apk dist-independent/CiviMoto-Administrador-Independent.apk
+          sha256sum dist-independent/*.apk > dist-independent/SHA256SUMS.txt
+      - name: Publicar artefactos de validación
+        uses: actions/upload-artifact@v4
+        with:
+          name: CiviMoto-Independent-PreBackend
+          path: dist-independent/*
