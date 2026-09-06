@@ -1,13 +1,13 @@
 plugins { id 'com.android.application' }
 
 android {
-    namespace 'pe.civitaxi.chofer'
+    namespace 'pe.civimoto.chofer'
     compileSdk 35
     defaultConfig {
-        applicationId 'pe.civitaxi.chofer'
+        applicationId 'pe.civimoto.chofer'
         minSdk 23
         targetSdk 35
-        versionCode 1
-        versionName '0.1-demo'
+        versionCode 2
+        versionName '0.9-beta'
     }
 }
