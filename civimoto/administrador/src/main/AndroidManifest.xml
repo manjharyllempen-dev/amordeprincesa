@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
     <application android:label="CiviMoto Administrador" android:icon="@drawable/logo_civimoto" android:roundIcon="@drawable/logo_civimoto" android:theme="@android:style/Theme.Material.NoActionBar" android:hardwareAccelerated="true">
-        <activity android:name=".DocumentAdminActivity" android:screenOrientation="portrait" android:exported="true">
+        <activity android:name=".UserActionsAdminActivity" android:screenOrientation="portrait" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
