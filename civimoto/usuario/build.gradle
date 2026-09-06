@@ -4,10 +4,10 @@ android {
     namespace 'pe.civimoto.usuario'
     compileSdk 35
     defaultConfig {
-        applicationId 'pe.civimoto.usuario'
+        applicationId 'com.civimoto.pasajero'
         minSdk 23
         targetSdk 35
-        versionCode 4
-        versionName '1.0-live'
+        versionCode 5
+        versionName '1.1-independent'
     }
 }
