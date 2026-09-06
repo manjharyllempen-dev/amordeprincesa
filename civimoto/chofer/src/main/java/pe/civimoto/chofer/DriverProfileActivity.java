@@ -11,49 +11,83 @@ import android.widget.LinearLayout;
 import org.json.JSONObject;
 import java.lang.reflect.Field;
 
-/** Muestra la foto y datos esenciales del pasajero dentro de cada solicitud. */
+/** Mantiene visible la foto y datos del pasajero desde la solicitud hasta finalizar el viaje. */
 public class DriverProfileActivity extends ReliableDriverActivity {
     private final Handler ui=new Handler(Looper.getMainLooper());
     private LinearLayout passengerCard;
+    private JSONObject cachedPassenger;
+    private Bitmap cachedFace;
+    private String profileTripId;
+    private boolean finished=false;
 
     private Object field(String name){try{Field f=FlowActivity.class.getDeclaredField(name);f.setAccessible(true);return f.get(this);}catch(Exception e){return null;}}
     private Backend backend(){return (Backend)field("backend");}
     private LinearLayout body(){return (LinearLayout)field("body");}
 
     @Override void screenOffer(){
-        super.screenOffer();
-        ui.postDelayed(this::loadPassengerProfile,500);
+        finished=false;super.screenOffer();installPassengerCard();ui.removeCallbacks(profileLoop);ui.postDelayed(profileLoop,300);
+    }
+
+    @Override void screenTrip(){
+        finished=false;super.screenTrip();installPassengerCard();ui.removeCallbacks(profileLoop);ui.postDelayed(profileLoop,250);
+    }
+
+    @Override void loadTrip(){
+        super.loadTrip();
+        if(!finished){installPassengerCard();ui.removeCallbacks(profileLoop);ui.postDelayed(profileLoop,200);}
+    }
+
+    private final Runnable profileLoop=new Runnable(){public void run(){
+        if(finished||isFinishing())return;
+        loadPassengerProfile();
+        ui.postDelayed(this,cachedPassenger==null?1200:5000);
+    }};
+
+    private String currentTripId(){
+        Object active=field("activeTripId");if(active instanceof String&&!((String)active).isEmpty())return(String)active;
+        String pending=getSharedPreferences("civimoto_driver_runtime",MODE_PRIVATE).getString("pending_offer_id",null);if(pending!=null&&!pending.isEmpty())return pending;
+        Object offered=field("offeredTripId");return offered instanceof String?(String)offered:null;
+    }
+
+    private void installPassengerCard(){
+        LinearLayout b=body();if(b==null)return;
+        if(passengerCard!=null&&passengerCard.getParent()==b)return;
+        passengerCard=card();
+        if(cachedPassenger!=null)renderPassenger(cachedPassenger);else{
+            passengerCard.addView(tx("Pasajero",19,Color.WHITE,true));
+            passengerCard.addView(tx("Cargando perfil del pasajero…",13,Color.rgb(176,180,190),false));
+        }
+        int pos=Math.min(1,b.getChildCount());b.addView(passengerCard,pos);
     }
 
     private void loadPassengerProfile(){
-        String tripId=getSharedPreferences("civimoto_driver_runtime",MODE_PRIVATE).getString("pending_offer_id",null);
-        if((tripId==null||tripId.isEmpty())&&field("offeredTripId") instanceof String)tripId=(String)field("offeredTripId");
-        if(tripId==null||tripId.isEmpty()||backend()==null)return;
-        final String id=tripId;
-        try{backend().rpc("cm_trip_passenger_profile",new JSONObject().put("p_trip_id",id),new Backend.Callback(){
-            public void ok(Object x){JSONObject p=Backend.firstObject(x);if(p!=null)renderPassenger(p);}
+        String tripId=currentTripId();if(tripId==null||tripId.isEmpty()||backend()==null)return;
+        if(profileTripId==null||!profileTripId.equals(tripId)){profileTripId=tripId;cachedPassenger=null;cachedFace=null;}
+        try{backend().rpc("cm_trip_passenger_profile",new JSONObject().put("p_trip_id",tripId),new Backend.Callback(){
+            public void ok(Object x){JSONObject p=Backend.firstObject(x);if(p!=null){cachedPassenger=p;installPassengerCard();renderPassenger(p);}}
             public void error(String m){}
         });}catch(Exception ignored){}
     }
 
     private void renderPassenger(JSONObject p){
-        LinearLayout b=body();if(b==null)return;
-        if(passengerCard!=null&&passengerCard.getParent()==b)b.removeView(passengerCard);
-        passengerCard=card();passengerCard.addView(tx("Pasajero",19,Color.WHITE,true));
+        installPassengerCard();LinearLayout b=body();if(b==null||passengerCard==null)return;passengerCard.removeAllViews();
+        passengerCard.addView(tx("Pasajero",19,Color.WHITE,true));
         LinearLayout top=new LinearLayout(this);top.setOrientation(LinearLayout.HORIZONTAL);top.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        ImageView face=photoBox();top.addView(face,new LinearLayout.LayoutParams(dp(96),dp(96)));
-        LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);info.setPadding(dp(12),0,0,0);
-        info.addView(tx(p.optString("full_name","Pasajero"),18,Color.WHITE,true));
+        ImageView face=photoBox();if(cachedFace!=null)face.setImageBitmap(cachedFace);top.addView(face,new LinearLayout.LayoutParams(dp(82),dp(82)));
+        LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);info.setPadding(dp(10),0,0,0);
+        info.addView(tx(p.optString("full_name","Pasajero"),17,Color.WHITE,true));
         info.addView(tx("★ "+p.optString("rating","—"),13,Color.rgb(255,220,90),true));
-        info.addView(tx("Teléfono: "+p.optString("phone","—"),13,Color.rgb(176,180,190),false));
-        String last4=p.optString("document_last4","");if(!last4.isEmpty())info.addView(tx("DNI verificado: •••• "+last4,12,Color.rgb(176,180,190),false));
+        info.addView(tx("Tel: "+p.optString("phone","—"),12,Color.rgb(176,180,190),false));
+        String last4=p.optString("document_last4","");if(!last4.isEmpty())info.addView(tx("DNI: •••• "+last4,12,Color.rgb(176,180,190),false));
         top.addView(info,new LinearLayout.LayoutParams(0,-2,1));passengerCard.addView(top);
-        passengerCard.addView(tx("La foto corresponde al perfil registrado del pasajero para esta solicitud.",12,Color.rgb(176,180,190),false));
-        int pos=Math.min(1,b.getChildCount());b.addView(passengerCard,pos);
-        loadPhoto(p.optString("face_photo_path"),face);
+        if(cachedFace==null)loadFace(p.optString("face_photo_path"),face);
     }
 
     private ImageView photoBox(){ImageView im=new ImageView(this);im.setScaleType(ImageView.ScaleType.CENTER_CROP);im.setImageResource(R.drawable.logo_civimoto);GradientDrawable bg=new GradientDrawable();bg.setColor(Color.rgb(25,25,25));bg.setStroke(dp(2),Color.rgb(255,190,0));bg.setCornerRadius(dp(18));im.setBackground(bg);im.setClipToOutline(true);im.setPadding(dp(2),dp(2),dp(2),dp(2));return im;}
-    private void loadPhoto(String path,ImageView target){if(path==null||path.trim().isEmpty())return;new ProfileImageLoader(backend()).download(path,new Backend.Callback(){public void ok(Object x){try{byte[] data=(byte[])x;Bitmap bm=BitmapFactory.decodeByteArray(data,0,data.length);if(bm!=null)target.setImageBitmap(bm);}catch(Exception ignored){}}public void error(String m){}});}
+
+    private void loadFace(String path,ImageView target){if(path==null||path.trim().isEmpty())return;new ProfileImageLoader(backend()).download(path,new Backend.Callback(){public void ok(Object x){try{byte[] data=(byte[])x;Bitmap bm=BitmapFactory.decodeByteArray(data,0,data.length);if(bm!=null){cachedFace=bm;target.setImageBitmap(bm);}}catch(Exception ignored){}}public void error(String m){}});}
+
+    @Override void screenEarnings(){finished=true;ui.removeCallbacks(profileLoop);super.screenEarnings();}
+    @Override void screenDashboard(){if(field("activeTripId")==null){finished=true;ui.removeCallbacks(profileLoop);}super.screenDashboard();}
     @Override protected void onDestroy(){ui.removeCallbacksAndMessages(null);super.onDestroy();}
 }
