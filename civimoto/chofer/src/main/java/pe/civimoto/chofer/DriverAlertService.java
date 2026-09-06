@@ -2,13 +2,15 @@ package pe.civimoto.chofer;
 
 import android.app.*;
 import android.content.*;
+import android.media.AudioAttributes;
 import android.os.*;
 import org.json.JSONObject;
 import java.util.HashSet;
 
 public class DriverAlertService extends Service {
     public static final String ACTION_NEW_OFFER="pe.civimoto.chofer.NEW_OFFER";
-    private static final String CHANNEL="civimoto_driver_online";
+    // Canal nuevo y silencioso para evitar que Android reutilice el canal antiguo HIGH.
+    private static final String CHANNEL="civimoto_driver_online_silent_v2";
     private static volatile boolean appVisible=false;
     private final Handler handler=new Handler(Looper.getMainLooper());
     private final HashSet<String> ignored=new HashSet<>();
@@ -19,18 +21,168 @@ public class DriverAlertService extends Service {
     public static void stop(Context c){c.stopService(new Intent(c,DriverAlertService.class));}
     public static void ignoreOffer(Context c,String id){if(id==null)return;Intent i=new Intent(c,DriverAlertService.class).setAction("IGNORE").putExtra("id",id);if(Build.VERSION.SDK_INT>=26)c.startForegroundService(i);else c.startService(i);}
 
-    @Override public void onCreate(){super.onCreate();backend=new Backend(this);alert=new CiviAlert(this);createChannel();acquireWakeLock();startForeground(7301,foregroundNotification("CiviMoto Conductor en línea","Esperando solicitudes de viaje"));handler.post(poller);}
-    @Override public int onStartCommand(Intent intent,int flags,int startId){if(intent!=null&&"IGNORE".equals(intent.getAction())){String id=intent.getStringExtra("id");if(id!=null)ignored.add(id);alert.stopOffer();lastOfferId=null;}return START_STICKY;}
+    @Override public void onCreate(){
+        super.onCreate();
+        backend=new Backend(this);
+        alert=new CiviAlert(this);
+        createSilentServiceChannel();
+        acquireWakeLock();
+        startForeground(7301,foregroundNotification("CiviMoto Conductor en línea","Esperando solicitudes de viaje"));
+        handler.post(poller);
+    }
 
-    private void createChannel(){if(Build.VERSION.SDK_INT>=26){NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);NotificationChannel ch=new NotificationChannel(CHANNEL,"CiviMoto conductor en línea",NotificationManager.IMPORTANCE_HIGH);ch.setDescription("Mantiene activas las solicitudes de viaje incluso con la pantalla apagada");ch.enableVibration(true);nm.createNotificationChannel(ch);}}
-    private Notification foregroundNotification(String title,String text){Intent open=new Intent(this,InteractiveFlowActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP);PendingIntent pi=PendingIntent.getActivity(this,7301,open,PendingIntent.FLAG_UPDATE_CURRENT|(Build.VERSION.SDK_INT>=23?PendingIntent.FLAG_IMMUTABLE:0));Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,CHANNEL):new Notification.Builder(this);b.setSmallIcon(android.R.drawable.ic_dialog_map).setContentTitle(title).setContentText(text).setContentIntent(pi).setOngoing(true).setPriority(Notification.PRIORITY_HIGH).setCategory(Notification.CATEGORY_SERVICE).setVisibility(Notification.VISIBILITY_PUBLIC);return b.build();}
-    private void updateForeground(String text){NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);if(nm!=null)nm.notify(7301,foregroundNotification("CiviMoto Conductor en línea",text));}
-    private void acquireWakeLock(){try{PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);wakeLock=pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"CiviMoto:DriverOfferLock");wakeLock.setReferenceCounted(false);wakeLock.acquire();}catch(Exception ignored){}}
-    private boolean screenInactive(){try{PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);if(pm==null)return !appVisible;if(Build.VERSION.SDK_INT>=20)return !pm.isInteractive()||!appVisible;return !pm.isScreenOn()||!appVisible;}catch(Exception e){return !appVisible;}}
+    @Override public int onStartCommand(Intent intent,int flags,int startId){
+        if(intent!=null&&"IGNORE".equals(intent.getAction())){
+            String id=intent.getStringExtra("id");
+            if(id!=null)ignored.add(id);
+            stopOfferAlarm();
+            lastOfferId=null;
+            updateForeground("Esperando solicitudes de viaje");
+        }
+        return START_STICKY;
+    }
 
-    private final Runnable poller=new Runnable(){public void run(){if(backend==null||!backend.hasSession()){alert.stopOffer();handler.postDelayed(this,5000);return;}try{backend.rpc("driver_available_trips",new JSONObject().put("p_radius_km",7),new Backend.Callback(){public void ok(Object value){JSONObject trip=Backend.firstObject(value);if(trip==null){lastOfferId=null;alert.stopOffer();updateForeground("Esperando solicitudes de viaje");return;}String id=trip.optString("id","");if(id.isEmpty()||ignored.contains(id)){alert.stopOffer();return;}boolean fresh=!id.equals(lastOfferId);lastOfferId=id;String route=trip.optString("origin_address","Origen")+" → "+trip.optString("destination_address","Destino");updateForeground("Nueva solicitud: "+route);if(screenInactive())alert.startOffer("Nueva solicitud CiviMoto",route);else alert.stopOffer();if(fresh){Intent event=new Intent(ACTION_NEW_OFFER);event.setPackage(getPackageName());event.putExtra("trip_id",id);sendBroadcast(event);}}public void error(String message){updateForeground("Conectando con central…");}});}catch(Exception ignored){}handler.postDelayed(this,3000);}};
+    private void createSilentServiceChannel(){
+        if(Build.VERSION.SDK_INT>=26){
+            NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+            NotificationChannel ch=new NotificationChannel(CHANNEL,"CiviMoto conductor en línea",NotificationManager.IMPORTANCE_LOW);
+            ch.setDescription("Servicio silencioso que mantiene al conductor disponible");
+            ch.enableVibration(false);
+            ch.setVibrationPattern(new long[]{0});
+            ch.setSound(null,null);
+            ch.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+            nm.createNotificationChannel(ch);
+        }
+    }
 
-    @Override public void onTaskRemoved(Intent rootIntent){try{AlarmManager am=(AlarmManager)getSystemService(ALARM_SERVICE);Intent restart=new Intent(this,DriverAlertService.class);int flags=PendingIntent.FLAG_ONE_SHOT|(Build.VERSION.SDK_INT>=23?PendingIntent.FLAG_IMMUTABLE:0);PendingIntent pi=Build.VERSION.SDK_INT>=26?PendingIntent.getForegroundService(this,7302,restart,flags):PendingIntent.getService(this,7302,restart,flags);if(am!=null){long at=SystemClock.elapsedRealtime()+2500;if(Build.VERSION.SDK_INT>=23)am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP,at,pi);else am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,at,pi);}}catch(Exception ignored){}super.onTaskRemoved(rootIntent);}
-    @Override public void onDestroy(){handler.removeCallbacks(poller);if(alert!=null)alert.release();try{if(wakeLock!=null&&wakeLock.isHeld())wakeLock.release();}catch(Exception ignored){}super.onDestroy();}
+    private Notification foregroundNotification(String title,String text){
+        Intent open=new Intent(this,InteractiveFlowActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent pi=PendingIntent.getActivity(this,7301,open,PendingIntent.FLAG_UPDATE_CURRENT|(Build.VERSION.SDK_INT>=23?PendingIntent.FLAG_IMMUTABLE:0));
+        Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,CHANNEL):new Notification.Builder(this);
+        b.setSmallIcon(android.R.drawable.ic_dialog_map)
+         .setContentTitle(title)
+         .setContentText(text)
+         .setContentIntent(pi)
+         .setOngoing(true)
+         .setOnlyAlertOnce(true)
+         .setPriority(Notification.PRIORITY_LOW)
+         .setCategory(Notification.CATEGORY_SERVICE)
+         .setVisibility(Notification.VISIBILITY_PRIVATE);
+        if(Build.VERSION.SDK_INT<26)b.setSound(null).setVibrate(new long[]{0});
+        return b.build();
+    }
+
+    private void updateForeground(String text){
+        NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+        if(nm!=null)nm.notify(7301,foregroundNotification("CiviMoto Conductor en línea",text));
+    }
+
+    private void acquireWakeLock(){
+        try{
+            PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);
+            wakeLock=pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"CiviMoto:DriverOfferLock");
+            wakeLock.setReferenceCounted(false);
+            wakeLock.acquire();
+        }catch(Exception ignored){}
+    }
+
+    private boolean screenInactive(){
+        try{
+            PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);
+            if(pm==null)return !appVisible;
+            if(Build.VERSION.SDK_INT>=20)return !pm.isInteractive()||!appVisible;
+            return !pm.isScreenOn()||!appVisible;
+        }catch(Exception e){return !appVisible;}
+    }
+
+    private void stopOfferAlarm(){
+        if(alert!=null)alert.stopOffer();
+    }
+
+    private final Runnable poller=new Runnable(){
+        public void run(){
+            if(backend==null||!backend.hasSession()){
+                stopOfferAlarm();
+                lastOfferId=null;
+                updateForeground("Esperando inicio de sesión");
+                handler.postDelayed(this,5000);
+                return;
+            }
+            try{
+                backend.rpc("driver_available_trips",new JSONObject().put("p_radius_km",7),new Backend.Callback(){
+                    public void ok(Object value){
+                        JSONObject trip=Backend.firstObject(value);
+                        if(trip==null){
+                            lastOfferId=null;
+                            stopOfferAlarm();
+                            updateForeground("Esperando solicitudes de viaje");
+                            return;
+                        }
+
+                        String id=trip.optString("id","");
+                        String status=trip.optString("status","");
+                        // Solo una solicitud realmente pendiente puede activar sonido.
+                        if(id.isEmpty()||!"solicitado".equals(status)||ignored.contains(id)){
+                            if(id.equals(lastOfferId))lastOfferId=null;
+                            stopOfferAlarm();
+                            updateForeground("Esperando solicitudes de viaje");
+                            return;
+                        }
+
+                        boolean fresh=!id.equals(lastOfferId);
+                        lastOfferId=id;
+                        String route=trip.optString("origin_address","Origen")+" → "+trip.optString("destination_address","Destino");
+                        // La notificación del servicio sigue siendo silenciosa.
+                        updateForeground("Solicitud disponible: "+route);
+
+                        // El sonido/vibración solo se activa con solicitud confirmada y pantalla inactiva/apagada.
+                        if(screenInactive())alert.startOffer("Nueva solicitud CiviMoto",route);
+                        else stopOfferAlarm();
+
+                        if(fresh){
+                            Intent event=new Intent(ACTION_NEW_OFFER);
+                            event.setPackage(getPackageName());
+                            event.putExtra("trip_id",id);
+                            sendBroadcast(event);
+                        }
+                    }
+
+                    public void error(String message){
+                        // Ante pérdida de red no mantenemos una alerta vieja: evita falsos positivos.
+                        stopOfferAlarm();
+                        lastOfferId=null;
+                        updateForeground("Conectando con central…");
+                    }
+                });
+            }catch(Exception ignored){
+                stopOfferAlarm();
+                lastOfferId=null;
+            }
+            handler.postDelayed(this,3000);
+        }
+    };
+
+    @Override public void onTaskRemoved(Intent rootIntent){
+        try{
+            AlarmManager am=(AlarmManager)getSystemService(ALARM_SERVICE);
+            Intent restart=new Intent(this,DriverAlertService.class);
+            int flags=PendingIntent.FLAG_ONE_SHOT|(Build.VERSION.SDK_INT>=23?PendingIntent.FLAG_IMMUTABLE:0);
+            PendingIntent pi=Build.VERSION.SDK_INT>=26?PendingIntent.getForegroundService(this,7302,restart,flags):PendingIntent.getService(this,7302,restart,flags);
+            if(am!=null){
+                long at=SystemClock.elapsedRealtime()+2500;
+                if(Build.VERSION.SDK_INT>=23)am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP,at,pi);
+                else am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,at,pi);
+            }
+        }catch(Exception ignored){}
+        super.onTaskRemoved(rootIntent);
+    }
+
+    @Override public void onDestroy(){
+        handler.removeCallbacks(poller);
+        if(alert!=null)alert.release();
+        try{if(wakeLock!=null&&wakeLock.isHeld())wakeLock.release();}catch(Exception ignored){}
+        super.onDestroy();
+    }
+
     @Override public android.os.IBinder onBind(Intent intent){return null;}
 }
