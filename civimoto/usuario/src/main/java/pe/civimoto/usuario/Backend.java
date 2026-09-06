@@ -1,0 +1,281 @@
+package pe.civimoto.usuario;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class Backend {
+    public interface Callback {
+        void ok(Object value);
+        void error(String message);
+    }
+
+    private static final String CONFIG_URL = "https://rhdcbxvohnrwfogiwcte.supabase.co/functions/v1/client-config";
+    private final SharedPreferences prefs;
+    private final ExecutorService io = Executors.newSingleThreadExecutor();
+    private final Handler main = new Handler(Looper.getMainLooper());
+
+    private String supabaseUrl;
+    private String publishableKey;
+    private String accessToken;
+    private String refreshToken;
+    private String userId;
+    private String role;
+    private long expiresAtMs;
+
+    public Backend(Context context) {
+        prefs = context.getSharedPreferences("civimoto_session", Context.MODE_PRIVATE);
+        supabaseUrl = prefs.getString("url", null);
+        publishableKey = prefs.getString("key", null);
+        accessToken = prefs.getString("access", null);
+        refreshToken = prefs.getString("refresh", null);
+        userId = prefs.getString("uid", null);
+        role = prefs.getString("role", null);
+        expiresAtMs = prefs.getLong("expires", 0L);
+    }
+
+    public boolean hasSession() { return accessToken != null && refreshToken != null && userId != null; }
+    public String getUserId() { return userId; }
+    public String getRole() { return role; }
+    public String getAccessToken() { return accessToken; }
+    public String getSupabaseUrl() { return supabaseUrl; }
+    public String getPublishableKey() { return publishableKey; }
+
+    public void bootstrap(Callback cb) {
+        io.execute(() -> {
+            try {
+                ensureConfigSync();
+                postOk(cb, new JSONObject().put("connected", true));
+            } catch (Exception e) { postError(cb, friendly(e)); }
+        });
+    }
+
+    public void login(String email, String password, String expectedRole, Callback cb) {
+        io.execute(() -> {
+            try {
+                ensureConfigSync();
+                JSONObject body = new JSONObject().put("email", email.trim().toLowerCase()).put("password", password);
+                Object raw = requestSync("POST", supabaseUrl + "/auth/v1/token?grant_type=password", body, false);
+                JSONObject session = asObject(raw);
+                storeSession(session);
+                JSONObject profile = getProfileSync();
+                String actualRole = profile.optString("role", "");
+                if (!expectedRole.equals(actualRole)) {
+                    clearSession();
+                    throw new Exception("Esta cuenta pertenece al rol " + actualRole + ". Abre la app correcta.");
+                }
+                if ("usuario".equals(actualRole) && !"activo".equals(profile.optString("account_status", "activo"))) {
+                    clearSession();
+                    throw new Exception("La cuenta de pasajero está suspendida.");
+                }
+                role = actualRole;
+                prefs.edit().putString("role", role).apply();
+                postOk(cb, profile);
+            } catch (Exception e) { postError(cb, friendly(e)); }
+        });
+    }
+
+    public void register(String fullName, String email, String password, String requestedRole, Callback cb) {
+        io.execute(() -> {
+            try {
+                ensureConfigSync();
+                JSONObject body = new JSONObject()
+                        .put("full_name", fullName.trim())
+                        .put("email", email.trim().toLowerCase())
+                        .put("password", password)
+                        .put("role", requestedRole);
+                Object out = requestSync("POST", supabaseUrl + "/functions/v1/register-account", body, false);
+                postOk(cb, out);
+            } catch (Exception e) { postError(cb, friendly(e)); }
+        });
+    }
+
+    public void resume(String expectedRole, Callback cb) {
+        io.execute(() -> {
+            try {
+                ensureConfigSync();
+                ensureFreshTokenSync();
+                JSONObject profile = getProfileSync();
+                String actualRole = profile.optString("role", "");
+                if (!expectedRole.equals(actualRole)) throw new Exception("Sesión de otro rol.");
+                role = actualRole;
+                prefs.edit().putString("role", role).apply();
+                postOk(cb, profile);
+            } catch (Exception e) {
+                clearSession();
+                postError(cb, friendly(e));
+            }
+        });
+    }
+
+    public void rest(String method, String path, JSONObject body, Callback cb) {
+        io.execute(() -> {
+            try {
+                ensureConfigSync();
+                ensureFreshTokenSync();
+                Object out = requestSync(method, supabaseUrl + "/rest/v1/" + path, body, true);
+                postOk(cb, out);
+            } catch (Exception e) { postError(cb, friendly(e)); }
+        });
+    }
+
+    public void rpc(String function, JSONObject body, Callback cb) {
+        io.execute(() -> {
+            try {
+                ensureConfigSync();
+                ensureFreshTokenSync();
+                Object out = requestSync("POST", supabaseUrl + "/rest/v1/rpc/" + function, body == null ? new JSONObject() : body, true);
+                postOk(cb, out);
+            } catch (Exception e) { postError(cb, friendly(e)); }
+        });
+    }
+
+    public void logout() { clearSession(); }
+
+    private void ensureConfigSync() throws Exception {
+        if (supabaseUrl != null && publishableKey != null) return;
+        HttpURLConnection c = open("GET", CONFIG_URL, false);
+        int code = c.getResponseCode();
+        String text = read(c, code >= 200 && code < 300);
+        if (code < 200 || code >= 300) throw new Exception(extractMessage(text));
+        JSONObject o = new JSONObject(text);
+        supabaseUrl = o.getString("supabase_url");
+        publishableKey = o.getString("publishable_key");
+        prefs.edit().putString("url", supabaseUrl).putString("key", publishableKey).apply();
+    }
+
+    private void ensureFreshTokenSync() throws Exception {
+        if (accessToken == null || refreshToken == null) throw new Exception("Inicia sesión.");
+        if (expiresAtMs == 0L || System.currentTimeMillis() < expiresAtMs - 60000L) return;
+        JSONObject body = new JSONObject().put("refresh_token", refreshToken);
+        Object raw = requestSync("POST", supabaseUrl + "/auth/v1/token?grant_type=refresh_token", body, false);
+        storeSession(asObject(raw));
+    }
+
+    private JSONObject getProfileSync() throws Exception {
+        Object raw = requestSync("GET", supabaseUrl + "/rest/v1/profiles?id=eq." + userId + "&select=id,role,full_name,phone,email,account_status,rating", null, true);
+        JSONArray arr = raw instanceof JSONArray ? (JSONArray) raw : new JSONArray();
+        if (arr.length() == 0) throw new Exception("No se encontró el perfil.");
+        return arr.getJSONObject(0);
+    }
+
+    private void storeSession(JSONObject session) throws Exception {
+        accessToken = session.getString("access_token");
+        refreshToken = session.getString("refresh_token");
+        JSONObject user = session.getJSONObject("user");
+        userId = user.getString("id");
+        long expiresIn = session.optLong("expires_in", 3600L);
+        expiresAtMs = System.currentTimeMillis() + expiresIn * 1000L;
+        prefs.edit()
+                .putString("access", accessToken)
+                .putString("refresh", refreshToken)
+                .putString("uid", userId)
+                .putLong("expires", expiresAtMs)
+                .apply();
+    }
+
+    private Object requestSync(String method, String absoluteUrl, JSONObject body, boolean auth) throws Exception {
+        HttpURLConnection c = open(method, absoluteUrl, auth);
+        if (body != null && !"GET".equals(method)) {
+            byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+            c.setDoOutput(true);
+            c.setFixedLengthStreamingMode(bytes.length);
+            try (OutputStream os = c.getOutputStream()) { os.write(bytes); }
+        }
+        int code = c.getResponseCode();
+        String text = read(c, code >= 200 && code < 300);
+        if (code < 200 || code >= 300) {
+            if (code == 401 && auth && refreshToken != null) {
+                expiresAtMs = 1L;
+                ensureFreshTokenSync();
+                return requestSync(method, absoluteUrl, body, true);
+            }
+            throw new Exception(extractMessage(text));
+        }
+        if (text == null || text.trim().isEmpty()) return new JSONObject().put("ok", true);
+        String s = text.trim();
+        if (s.startsWith("[")) return new JSONArray(s);
+        if (s.startsWith("{")) return new JSONObject(s);
+        return s;
+    }
+
+    private HttpURLConnection open(String method, String absoluteUrl, boolean auth) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(absoluteUrl).openConnection();
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(20000);
+        c.setRequestMethod(method);
+        c.setRequestProperty("Content-Type", "application/json");
+        c.setRequestProperty("Accept", "application/json");
+        if (publishableKey != null) c.setRequestProperty("apikey", publishableKey);
+        if (auth && accessToken != null) c.setRequestProperty("Authorization", "Bearer " + accessToken);
+        if (!"GET".equals(method)) c.setRequestProperty("Prefer", "return=representation");
+        return c;
+    }
+
+    private String read(HttpURLConnection c, boolean success) throws Exception {
+        InputStream in = success ? c.getInputStream() : c.getErrorStream();
+        if (in == null) return "";
+        BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null) sb.append(line);
+        br.close();
+        return sb.toString();
+    }
+
+    private static JSONObject asObject(Object value) throws Exception {
+        if (value instanceof JSONObject) return (JSONObject) value;
+        if (value instanceof JSONArray && ((JSONArray) value).length() > 0) return ((JSONArray) value).getJSONObject(0);
+        throw new Exception("Respuesta inesperada del servidor.");
+    }
+
+    public static JSONObject firstObject(Object value) {
+        try {
+            if (value instanceof JSONObject) return (JSONObject) value;
+            if (value instanceof JSONArray && ((JSONArray) value).length() > 0) return ((JSONArray) value).getJSONObject(0);
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private String extractMessage(String text) {
+        try {
+            JSONObject o = new JSONObject(text);
+            String m = o.optString("message", "");
+            if (m.isEmpty()) m = o.optString("msg", "");
+            if (m.isEmpty()) m = o.optString("error_description", "");
+            if (m.isEmpty()) m = o.optString("error", "");
+            if (!m.isEmpty()) return m;
+        } catch (Exception ignored) {}
+        return (text == null || text.trim().isEmpty()) ? "Error de conexión." : text;
+    }
+
+    private String friendly(Exception e) {
+        String m = e.getMessage();
+        if (m == null || m.trim().isEmpty()) return "No se pudo conectar con Civimoto.";
+        if (m.contains("Invalid login credentials")) return "Correo o contraseña incorrectos.";
+        if (m.contains("Email not confirmed")) return "Confirma tu correo antes de ingresar.";
+        return m;
+    }
+
+    private void clearSession() {
+        accessToken = null; refreshToken = null; userId = null; role = null; expiresAtMs = 0L;
+        prefs.edit().remove("access").remove("refresh").remove("uid").remove("role").remove("expires").apply();
+    }
+
+    private void postOk(Callback cb, Object value) { main.post(() -> cb.ok(value)); }
+    private void postError(Callback cb, String message) { main.post(() -> cb.error(message)); }
+}
