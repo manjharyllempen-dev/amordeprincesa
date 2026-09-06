@@ -6,6 +6,8 @@ import android.content.Context;
 import android.media.AudioManager;
 import android.media.ToneGenerator;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 
@@ -13,6 +15,7 @@ public class CiviAlert {
     private static final String CHANNEL="civimoto_passenger_alerts";
     private final Context context;
     private final NotificationManager nm;
+    private final Handler h=new Handler(Looper.getMainLooper());
     private ToneGenerator tone;
 
     public CiviAlert(Context c){
@@ -33,7 +36,7 @@ public class CiviAlert {
     }
 
     public void event(String title,String body,int id){
-        beep(); vibrate();
+        repeatSignal();
         try{
             android.app.Notification.Builder b=Build.VERSION.SDK_INT>=26?new android.app.Notification.Builder(context,CHANNEL):new android.app.Notification.Builder(context);
             b.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle(title).setContentText(body).setAutoCancel(true).setPriority(android.app.Notification.PRIORITY_HIGH);
@@ -42,7 +45,14 @@ public class CiviAlert {
         }catch(SecurityException ignored){}catch(Exception ignored){}
     }
 
+    private void repeatSignal(){
+        for(int i=0;i<3;i++){
+            final int delay=i*650;
+            h.postDelayed(()->{beep();vibrate();},delay);
+        }
+    }
+
     private void beep(){try{if(tone!=null)tone.startTone(ToneGenerator.TONE_PROP_BEEP2,420);}catch(Exception ignored){}}
     private void vibrate(){try{Vibrator v=(Vibrator)context.getSystemService(Context.VIBRATOR_SERVICE);if(v==null)return;if(Build.VERSION.SDK_INT>=26)v.vibrate(VibrationEffect.createOneShot(320,VibrationEffect.DEFAULT_AMPLITUDE));else v.vibrate(320);}catch(Exception ignored){}}
-    public void release(){try{if(tone!=null){tone.release();tone=null;}}catch(Exception ignored){}}
+    public void release(){h.removeCallbacksAndMessages(null);try{if(tone!=null){tone.release();tone=null;}}catch(Exception ignored){}}
 }
