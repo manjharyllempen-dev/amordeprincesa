@@ -4,19 +4,17 @@ import android.app.AlertDialog;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.view.Gravity;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.lang.reflect.Field;
 
 /** Panel de choferes con documentos privados, aprobación y eliminación corregida. */
 public class DocumentAdminActivity extends InteractiveFlowActivity {
-    private final int MUTED=Color.rgb(176,180,190),GOLD=Color.rgb(255,220,90),GREEN=Color.rgb(35,190,105),RED=Color.rgb(235,65,65),ORANGE=Color.rgb(255,175,45);
+    private final int MUTED=Color.rgb(176,180,190),GREEN=Color.rgb(35,190,105),RED=Color.rgb(235,65,65),ORANGE=Color.rgb(255,175,45);
     private Backend backend(){try{Field f=FlowActivity.class.getDeclaredField("backend");f.setAccessible(true);return(Backend)f.get(this);}catch(Exception e){return null;}}
     private LinearLayout body(){try{Field f=FlowActivity.class.getDeclaredField("body");f.setAccessible(true);return(LinearLayout)f.get(this);}catch(Exception e){return null;}}
     private void tab(String v){try{Field f=InteractiveFlowActivity.class.getDeclaredField("currentTab");f.setAccessible(true);f.set(this,v);}catch(Exception ignored){}}
@@ -24,10 +22,10 @@ public class DocumentAdminActivity extends InteractiveFlowActivity {
     @Override void screenDrivers(){
         tab("choferes");shell("Choferes","",4);
         LinearLayout intro=card();intro.addView(tx("Choferes registrados",22,Color.WHITE,true));intro.addView(tx("Revisa identidad, DNI, tarjeta de propiedad, foto del mototaxi y rostro antes de aprobar. Los choferes eliminados dejan de aparecer en el directorio activo.",13,MUTED,false));body().addView(intro);
-        LinearLayout list=card();list.addView(tx("Cargando choferes…",14,MUTED,false));body().addView(list);loadDrivers(list);
+        LinearLayout list=card();list.addView(tx("Cargando choferes…",14,MUTED,false));body().addView(list);loadDriverDirectory(list);
     }
 
-    private void loadDrivers(LinearLayout box){
+    private void loadDriverDirectory(LinearLayout box){
         box.removeAllViews();box.addView(tx("Directorio activo",20,Color.WHITE,true));
         backend().rpc("admin_driver_directory",new JSONObject(),new Backend.Callback(){public void ok(Object x){
             if(!(x instanceof JSONArray)){box.addView(tx("Sin choferes registrados.",14,MUTED,false));return;}JSONArray a=(JSONArray)x;int shown=0;
@@ -61,7 +59,7 @@ public class DocumentAdminActivity extends InteractiveFlowActivity {
         }public void error(String m){toast(m);}});
     }
 
-    private void setStatus(String id,String status,LinearLayout box){try{backend().rpc("admin_set_driver_status",new JSONObject().put("p_driver_id",id).put("p_status",status),new Backend.Callback(){public void ok(Object x){toast("Estado actualizado: "+status);loadDrivers(box);}public void error(String m){toast(m);}});}catch(Exception e){toast(e.getMessage());}}
-    private void verify(String id,boolean value,LinearLayout box){try{backend().rpc("cm_admin_verify_driver",new JSONObject().put("p_driver_id",id).put("p_verified",value).put("p_notes",value?"Documentos revisados desde panel CiviMoto":"Verificación retirada"),new Backend.Callback(){public void ok(Object x){toast(value?"Documentos verificados":"Verificación retirada");loadDrivers(box);}public void error(String m){toast(m);}});}catch(Exception e){toast(e.getMessage());}}
-    private void confirmDelete(String id,String name,LinearLayout box){new AlertDialog.Builder(this).setTitle("Eliminar chofer").setMessage("¿Eliminar a "+name+"? Se desactivará su cuenta y su vehículo, conservando el historial de viajes.").setNegativeButton("Cancelar",null).setPositiveButton("Eliminar",(d,w)->{try{backend().rpc("cm_admin_delete_driver",new JSONObject().put("p_driver_id",id),new Backend.Callback(){public void ok(Object x){toast("Chofer eliminado correctamente");loadDrivers(box);}public void error(String m){toast("No se pudo eliminar: "+m);}});}catch(Exception e){toast(e.getMessage());}}).show();}
+    private void setStatus(String id,String status,LinearLayout box){try{backend().rpc("admin_set_driver_status",new JSONObject().put("p_driver_id",id).put("p_status",status),new Backend.Callback(){public void ok(Object x){toast("Estado actualizado: "+status);loadDriverDirectory(box);}public void error(String m){toast(m);}});}catch(Exception e){toast(e.getMessage());}}
+    private void verify(String id,boolean value,LinearLayout box){try{backend().rpc("cm_admin_verify_driver",new JSONObject().put("p_driver_id",id).put("p_verified",value).put("p_notes",value?"Documentos revisados desde panel CiviMoto":"Verificación retirada"),new Backend.Callback(){public void ok(Object x){toast(value?"Documentos verificados":"Verificación retirada");loadDriverDirectory(box);}public void error(String m){toast(m);}});}catch(Exception e){toast(e.getMessage());}}
+    private void confirmDelete(String id,String name,LinearLayout box){new AlertDialog.Builder(this).setTitle("Eliminar chofer").setMessage("¿Eliminar a "+name+"? Se desactivará su cuenta y su vehículo, conservando el historial de viajes.").setNegativeButton("Cancelar",null).setPositiveButton("Eliminar",(d,w)->{try{backend().rpc("cm_admin_delete_driver",new JSONObject().put("p_driver_id",id),new Backend.Callback(){public void ok(Object x){toast("Chofer eliminado correctamente");loadDriverDirectory(box);}public void error(String m){toast("No se pudo eliminar: "+m);}});}catch(Exception e){toast(e.getMessage());}}).show();}
 }
