@@ -7,8 +7,11 @@ import android.location.Address;
 import android.location.Geocoder;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.InputType;
 import android.view.Gravity;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.*;
 import org.json.JSONObject;
 import java.lang.reflect.Field;
@@ -44,6 +47,31 @@ public class InteractiveFlowActivity extends FlowActivity {
         LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(0,dp(8),0,0);root.addView(content);setField("body",content);setContentView(sc);
     }
 
+    private void addPasswordToggle(LinearLayout c,EditText pass){
+        CheckBox show=new CheckBox(this);show.setText("Mostrar contraseña");show.setTextColor(GOLD2);show.setPadding(dp(4),dp(2),0,dp(5));
+        show.setOnCheckedChangeListener((v,on)->{int pos=pass.getSelectionStart();pass.setInputType(InputType.TYPE_CLASS_TEXT|(on?InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD:InputType.TYPE_TEXT_VARIATION_PASSWORD));pass.setSelection(Math.max(0,Math.min(pos,pass.length())));show.setText(on?"Ocultar contraseña":"Mostrar contraseña");});
+        c.addView(show);
+    }
+
+    @Override void screenLogin(){
+        shell("","",0);LinearLayout c=card();c.addView(tx("Bienvenido",24,Color.WHITE,true));c.addView(tx("Ingresa a tu cuenta exclusiva de CiviMoto.",13,MUTED,false));
+        EditText email=input("Correo electrónico"),pass=input("Contraseña");pass.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);c.addView(email);c.addView(pass);addPasswordToggle(c,pass);
+        Button login=btn("Iniciar sesión",true),register=btn("Crear una cuenta",false);c.addView(login);c.addView(register);body().addView(c);
+        login.setOnClickListener(v->{login.setEnabled(false);backend().login(email.getText().toString(),pass.getText().toString(),"usuario",new Backend.Callback(){public void ok(Object x){screenHome();}public void error(String m){login.setEnabled(true);toast(m);}});});register.setOnClickListener(v->screenRegister());
+    }
+
+    @Override void screenRegister(){
+        shell("","",0);LinearLayout c=card();c.addView(tx("Crear cuenta",24,Color.WHITE,true));EditText name=input("Nombre completo"),email=input("Correo electrónico"),phone=input("Teléfono"),pass=input("Contraseña (8+ caracteres)");pass.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);c.addView(name);c.addView(email);c.addView(phone);c.addView(pass);addPasswordToggle(c,pass);
+        Button create=btn("Crear cuenta y continuar",true),back=btn("Ya tengo cuenta",false);c.addView(create);c.addView(back);body().addView(c);
+        create.setOnClickListener(v->{create.setEnabled(false);backend().register(name.getText().toString(),email.getText().toString(),pass.getText().toString(),"usuario",new Backend.Callback(){public void ok(Object x){backend().login(email.getText().toString(),pass.getText().toString(),"usuario",new Backend.Callback(){public void ok(Object y){screenHome();}public void error(String m){create.setEnabled(true);toast(m);}});}public void error(String m){create.setEnabled(true);toast(m);}});});back.setOnClickListener(v->screenLogin());
+    }
+
+    @Override WebView createMap(){
+        WebView w=new WebView(this);WebSettings s=w.getSettings();s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);w.setWebViewClient(new WebViewClient());w.addJavascriptInterface(new MapBridge(),"AndroidMap");
+        String html="<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><link href='https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css' rel='stylesheet'><style>html,body,#m{margin:0;width:100%;height:100%;background:#101216}</style></head><body><div id='m'></div><script src='https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js'></script><script>let map=new maplibregl.Map({container:'m',style:'https://tiles.openfreemap.org/styles/liberty',center:[-77.0428,-12.0464],zoom:13});let me,dest,drv;function setMe(x,y){if(me)me.remove();me=new maplibregl.Marker({color:'#ffbe00'}).setLngLat([x,y]).addTo(map);map.flyTo({center:[x,y],zoom:16});}function setDriver(x,y){if(drv)drv.remove();drv=new maplibregl.Marker({color:'#111'}).setLngLat([x,y]).addTo(map);}async function drawRoute(x1,y1,x2,y2){if(dest)dest.remove();dest=new maplibregl.Marker({color:'#ef4040'}).setLngLat([x2,y2]).addTo(map);let coords=[[x1,y1],[x2,y2]];try{let r=await fetch('https://router.project-osrm.org/route/v1/driving/'+x1+','+y1+';'+x2+','+y2+'?overview=full&geometries=geojson');let j=await r.json();if(j.routes&&j.routes.length)coords=j.routes[0].geometry.coordinates;}catch(e){}let geo={type:'Feature',geometry:{type:'LineString',coordinates:coords}};if(map.getSource('route'))map.getSource('route').setData(geo);else{map.addSource('route',{type:'geojson',data:geo});map.addLayer({id:'route-shadow',type:'line',source:'route',paint:{'line-color':'#111','line-width':8,'line-opacity':0.65}});map.addLayer({id:'route',type:'line',source:'route',paint:{'line-color':'#ffbe00','line-width':5,'line-opacity':0.95}});}let b=coords.reduce((bb,c)=>bb.extend(c),new maplibregl.LngLatBounds(coords[0],coords[0]));map.fitBounds(b,{padding:55,maxZoom:16});}map.on('click',e=>{AndroidMap.destination(e.lngLat.lat,e.lngLat.lng);drawRoute(me?me.getLngLat().lng:-77.0428,me?me.getLngLat().lat:-12.0464,e.lngLat.lng,e.lngLat.lat);});</script></body></html>";
+        w.loadDataWithBaseURL("https://passenger.civimoto.local/",html,"text/html","UTF-8",null);ui.postDelayed(()->w.evaluateJavascript("setMe("+getDouble("lng",-77.0428)+","+getDouble("lat",-12.0464)+")",null),900);return w;
+    }
+
     @Override void screenHome(){
         shell("","",0);LinearLayout b=body();
         TextView connection=tx("Conectando con central…",12,MUTED,false);setField("connection",connection);b.addView(connection);
@@ -72,13 +100,15 @@ public class InteractiveFlowActivity extends FlowActivity {
         startRealtime();startPoller();loadTripById();
     }
 
+    @Override void renderTrip(JSONObject t){super.renderTrip(t);WebView m=(WebView)getField("map");if(m!=null){double x1=t.optDouble("origin_lng",getDouble("lng",-77.0428)),y1=t.optDouble("origin_lat",getDouble("lat",-12.0464)),x2=t.optDouble("destination_lng",getDouble("dlng",-77.0228)),y2=t.optDouble("destination_lat",getDouble("dlat",-12.0564));m.evaluateJavascript("drawRoute("+x1+","+y1+","+x2+","+y2+")",null);}}
+
     @Override void screenPayment(){
         shell("","",0);LinearLayout b=body();LinearLayout c=card();c.addView(tx("Viaje finalizado",25,Color.WHITE,true));String payment=String.valueOf(getField("payment"));c.addView(tx("Método de pago: "+payment.toUpperCase(Locale.ROOT),17,GOLD2,true));c.addView(tx("Gracias por viajar con CiviMoto.",13,MUTED,false));Button again=btn("Volver a pedir viaje",true),history=btn("Ver historial",false);c.addView(again);c.addView(history);b.addView(c);again.setOnClickListener(v->{setField("tripId",null);setField("driverId",null);setField("lastStatus","");screenHome();});history.setOnClickListener(v->screenHistory());
     }
 
     private void centerActual(WebView m){ui.postDelayed(()->{double la=getDouble("lat",-12.0464),lo=getDouble("lng",-77.0428);if(m!=null)m.evaluateJavascript("setMe("+lo+","+la+")",null);},700);}
     private interface Done{void run();}
-    private void resolveAddresses(EditText origin,EditText destination,WebView map,Done done){String o=origin.getText().toString().trim(),d=destination.getText().toString().trim();if(d.isEmpty()&&getBoolean("destReady")){d="Destino marcado en mapa";destination.setText(d);}if(d.isEmpty()){toast("Escribe una dirección de destino o toca un punto en el mapa.");done.run();return;}final String destText=d;new Thread(()->{try{double olat=getDouble("lat",-12.0464),olng=getDouble("lng",-77.0428);if(!o.isEmpty()&&!o.toLowerCase(Locale.ROOT).contains("mi ubicación")){double[] p=geocode(o);olat=p[0];olng=p[1];}double dlat=getDouble("dlat",-12.0564),dlng=getDouble("dlng",-77.0228);if(!"Destino marcado en mapa".equals(destText)){double[] q=geocode(destText);dlat=q[0];dlng=q[1];}else if(!getBoolean("destReady"))throw new Exception("Marca el destino");final double a=olat,b=olng,c=dlat,e=dlng;setDouble("lat",a);setDouble("lng",b);setDouble("dlat",c);setDouble("dlng",e);setBoolean("destReady",true);ui.post(()->{if(map!=null)map.evaluateJavascript("setMe("+b+","+a+");if(dest)dest.remove();dest=new maplibregl.Marker({color:'#ef4040'}).setLngLat(["+e+","+c+"]).addTo(map);map.fitBounds([["+b+","+a+"],["+e+","+c+"]],{padding:50});",null);done.run();});}catch(Exception ex){ui.post(()->{toast("No pude ubicar esa dirección. Escribe más detalle o marca el destino en el mapa.");done.run();});}}).start();}
+    private void resolveAddresses(EditText origin,EditText destination,WebView map,Done done){String o=origin.getText().toString().trim(),d=destination.getText().toString().trim();if(d.isEmpty()&&getBoolean("destReady")){d="Destino marcado en mapa";destination.setText(d);}if(d.isEmpty()){toast("Escribe una dirección de destino o toca un punto en el mapa.");done.run();return;}final String destText=d;new Thread(()->{try{double olat=getDouble("lat",-12.0464),olng=getDouble("lng",-77.0428);if(!o.isEmpty()&&!o.toLowerCase(Locale.ROOT).contains("mi ubicación")){double[] p=geocode(o);olat=p[0];olng=p[1];}double dlat=getDouble("dlat",-12.0564),dlng=getDouble("dlng",-77.0228);if(!"Destino marcado en mapa".equals(destText)){double[] q=geocode(destText);dlat=q[0];dlng=q[1];}else if(!getBoolean("destReady"))throw new Exception("Marca el destino");final double a=olat,b=olng,c=dlat,e=dlng;setDouble("lat",a);setDouble("lng",b);setDouble("dlat",c);setDouble("dlng",e);setBoolean("destReady",true);ui.post(()->{if(map!=null)map.evaluateJavascript("setMe("+b+","+a+");drawRoute("+b+","+a+","+e+","+c+")",null);done.run();});}catch(Exception ex){ui.post(()->{toast("No pude ubicar esa dirección. Escribe más detalle o marca el destino en el mapa.");done.run();});}}).start();}
     private double[] geocode(String text)throws Exception{if(!Geocoder.isPresent())throw new Exception("Geocoder no disponible");Geocoder g=new Geocoder(this,new Locale("es","PE"));List<Address> list=g.getFromLocationName(text+", Perú",1);if(list==null||list.isEmpty())throw new Exception("Dirección no encontrada");Address a=list.get(0);return new double[]{a.getLatitude(),a.getLongitude()};}
     private void prepareAndRequest(EditText origin,EditText destination,WebView map,Button request){resolveAddresses(origin,destination,map,()->{if(!getBoolean("destReady")){request.setEnabled(true);return;}try{String o=origin.getText().toString().trim();if(o.isEmpty())o="Mi ubicación actual";String d=destination.getText().toString().trim();if(d.isEmpty())d="Destino marcado en mapa";String payment=(String)getField("payment");if(payment==null)payment="efectivo";JSONObject data=new JSONObject().put("p_origin_address",o).put("p_origin_lat",getDouble("lat",-12.0464)).put("p_origin_lng",getDouble("lng",-77.0428)).put("p_destination_address",d).put("p_destination_lat",getDouble("dlat",-12.0564)).put("p_destination_lng",getDouble("dlng",-77.0228)).put("p_payment_method",payment);backend().rpc("request_civimoto_trip",data,new Backend.Callback(){public void ok(Object x){JSONObject t=Backend.firstObject(x);if(t!=null){setField("tripId",t.optString("id"));setField("lastStatus",t.optString("status",""));}screenTracking();}public void error(String m){request.setEnabled(true);toast(m);}});}catch(Exception e){request.setEnabled(true);toast("No se pudo preparar la solicitud.");}});}
 }
