@@ -1,0 +1,43 @@
+name: CiviMoto - Respaldo codigo fuente
+
+on:
+  push:
+    branches: [civimoto-independent]
+    paths:
+      - 'civimoto/**'
+      - 'CIVIMOTO-README.md'
+      - '.github/workflows/civimoto-independent.yml'
+      - '.github/workflows/civimoto-source-backup.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: civimoto-independent
+      - name: Preparar respaldo
+        run: |
+          set -e
+          mkdir -p CiviMoto-Source-Backup/.github/workflows
+          cp -R civimoto CiviMoto-Source-Backup/
+          cp CIVIMOTO-README.md CiviMoto-Source-Backup/
+          cp .github/workflows/civimoto-independent.yml CiviMoto-Source-Backup/.github/workflows/
+          cp .github/workflows/civimoto-source-backup.yml CiviMoto-Source-Backup/.github/workflows/
+          printf 'Repositorio: manjharyllempen-dev/amordeprincesa\nRama: civimoto-independent\nCommit: %s\n' "$GITHUB_SHA" > CiviMoto-Source-Backup/RESPALDO_VERSION.txt
+          find CiviMoto-Source-Backup -type f | sort > CiviMoto-Source-Backup/ARCHIVOS.txt
+          zip -r CiviMoto-Codigo-Fuente-Completo.zip CiviMoto-Source-Backup >/dev/null
+          sha256sum CiviMoto-Codigo-Fuente-Completo.zip > SHA256SUMS.txt
+      - name: Publicar respaldo
+        uses: actions/upload-artifact@v4
+        with:
+          name: CiviMoto-Codigo-Fuente-Completo
+          path: |
+            CiviMoto-Codigo-Fuente-Completo.zip
+            SHA256SUMS.txt
+          retention-days: 90
