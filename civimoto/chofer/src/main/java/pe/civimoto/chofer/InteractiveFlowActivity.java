@@ -8,9 +8,12 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.*;
 import org.json.JSONObject;
 import java.lang.reflect.Field;
@@ -47,6 +50,25 @@ public class InteractiveFlowActivity extends FlowActivity {
         LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(0,dp(8),0,0);root.addView(content);setField("body",content);setContentView(sc);
     }
 
+    private void addPasswordToggle(LinearLayout c,EditText pass){CheckBox show=new CheckBox(this);show.setText("Mostrar contraseña");show.setTextColor(GOLD2);show.setPadding(dp(4),dp(2),0,dp(5));show.setOnCheckedChangeListener((v,on)->{int pos=pass.getSelectionStart();pass.setInputType(InputType.TYPE_CLASS_TEXT|(on?InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD:InputType.TYPE_TEXT_VARIATION_PASSWORD));pass.setSelection(Math.max(0,Math.min(pos,pass.length())));show.setText(on?"Ocultar contraseña":"Mostrar contraseña");});c.addView(show);}
+
+    @Override void screenLogin(){
+        offerScreenOpen=false;DriverAlertService.stop(this);autoHandler.removeCallbacks(autoWatcher);CiviAlert a=(CiviAlert)getField("alerts");if(a!=null)a.stopOffer();shell("","",0);
+        LinearLayout c=card();c.addView(tx("Iniciar sesión",24,Color.WHITE,true));EditText email=input("Correo electrónico"),pass=input("Contraseña");pass.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);c.addView(email);c.addView(pass);addPasswordToggle(c,pass);Button login=btn("Iniciar sesión",true),reg=btn("Registrarme como conductor",false);c.addView(login);c.addView(reg);body().addView(c);
+        login.setOnClickListener(v->{login.setEnabled(false);backend().login(email.getText().toString(),pass.getText().toString(),"chofer",new Backend.Callback(){public void ok(Object x){screenDashboard();}public void error(String m){login.setEnabled(true);toast(m);}});});reg.setOnClickListener(v->screenRegister());
+    }
+
+    @Override void screenRegister(){
+        offerScreenOpen=false;DriverAlertService.stop(this);shell("","",0);LinearLayout c=card();c.addView(tx("Registro de conductor",24,Color.WHITE,true));EditText name=input("Nombre completo"),email=input("Correo electrónico"),phone=input("Teléfono"),plate=input("Placa del mototaxi"),pass=input("Contraseña (8+ caracteres)");pass.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);c.addView(name);c.addView(email);c.addView(phone);c.addView(plate);c.addView(pass);addPasswordToggle(c,pass);Button create=btn("Crear cuenta",true),back=btn("Volver a iniciar sesión",false);c.addView(create);c.addView(back);body().addView(c);
+        create.setOnClickListener(v->{create.setEnabled(false);backend().register(name.getText().toString(),email.getText().toString(),pass.getText().toString(),"chofer",new Backend.Callback(){public void ok(Object x){backend().login(email.getText().toString(),pass.getText().toString(),"chofer",new Backend.Callback(){public void ok(Object y){screenDashboard();toast("Cuenta creada. El administrador debe aprobarla.");}public void error(String m){create.setEnabled(true);toast(m);}});}public void error(String m){create.setEnabled(true);toast(m);}});});back.setOnClickListener(v->screenLogin());
+    }
+
+    @Override WebView createMap(){
+        WebView w=new WebView(this);WebSettings s=w.getSettings();s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);w.setWebViewClient(new WebViewClient());
+        String html="<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><link href='https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css' rel='stylesheet'><style>html,body,#m{margin:0;width:100%;height:100%;background:#101216}</style></head><body><div id='m'></div><script src='https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js'></script><script>let map=new maplibregl.Map({container:'m',style:'https://tiles.openfreemap.org/styles/liberty',center:[-77.0428,-12.0464],zoom:13});let me,a,b;function setMe(x,y){if(me)me.remove();me=new maplibregl.Marker({color:'#ffbe00'}).setLngLat([x,y]).addTo(map);map.flyTo({center:[x,y],zoom:16});}async function drawRoute(x1,y1,x2,y2){if(a)a.remove();if(b)b.remove();a=new maplibregl.Marker({color:'#23be69'}).setLngLat([x1,y1]).addTo(map);b=new maplibregl.Marker({color:'#ef4040'}).setLngLat([x2,y2]).addTo(map);let coords=[[x1,y1],[x2,y2]];try{let r=await fetch('https://router.project-osrm.org/route/v1/driving/'+x1+','+y1+';'+x2+','+y2+'?overview=full&geometries=geojson');let j=await r.json();if(j.routes&&j.routes.length)coords=j.routes[0].geometry.coordinates;}catch(e){}let geo={type:'Feature',geometry:{type:'LineString',coordinates:coords}};if(map.getSource('route'))map.getSource('route').setData(geo);else{map.addSource('route',{type:'geojson',data:geo});map.addLayer({id:'route-shadow',type:'line',source:'route',paint:{'line-color':'#111','line-width':8,'line-opacity':0.65}});map.addLayer({id:'route',type:'line',source:'route',paint:{'line-color':'#ffbe00','line-width':5,'line-opacity':0.95}});}let bb=coords.reduce((z,c)=>z.extend(c),new maplibregl.LngLatBounds(coords[0],coords[0]));map.fitBounds(bb,{padding:55,maxZoom:16});}function showOffer(x1,y1,x2,y2){drawRoute(x1,y1,x2,y2);}</script></body></html>";
+        w.loadDataWithBaseURL("https://driver.civimoto.local/",html,"text/html","UTF-8",null);autoHandler.postDelayed(()->w.evaluateJavascript("setMe("+getDouble("lng",-77.0428)+","+getDouble("lat",-12.0464)+")",null),900);return w;
+    }
+
     @Override void screenDashboard(){
         offerScreenOpen=false;super.screenDashboard();LinearLayout b=body();if(b==null)return;
         Button services=findButton(b,"Ver solicitudes disponibles");if(services!=null){View parent=(View)services.getParent();if(parent instanceof LinearLayout)((LinearLayout)parent).removeView(services);}
@@ -58,7 +80,6 @@ public class InteractiveFlowActivity extends FlowActivity {
     @Override void screenOffer(){offerScreenOpen=true;super.screenOffer();Button accept=findButton(body(),"Aceptar viaje"),reject=findButton(body(),"Rechazar");if(reject!=null){reject.setOnClickListener(v->{String id=(String)getField("offeredTripId");if(id!=null){Object r=getField("rejected");if(r instanceof HashSet)((HashSet<String>)r).add(id);DriverAlertService.ignoreOffer(this,id);}CiviAlert a=(CiviAlert)getField("alerts");if(a!=null)a.stopOffer();setField("offeredTripId",null);TextView txt=(TextView)getField("offerText");if(txt!=null)txt.setText("Solicitud rechazada. Esperando otra solicitud…");if(accept!=null)accept.setEnabled(false);reject.setEnabled(false);autoHandler.postDelayed(()->{if(accept!=null)loadOffers(accept,reject);},900);});}freshLocation();centerCurrentMap();}
     @Override void screenTrip(){offerScreenOpen=false;super.screenTrip();freshLocation();centerCurrentMap();}
     @Override void screenEarnings(){offerScreenOpen=false;super.screenEarnings();}
-    @Override void screenLogin(){offerScreenOpen=false;DriverAlertService.stop(this);autoHandler.removeCallbacks(autoWatcher);super.screenLogin();}
 
     private final Runnable autoWatcher=new Runnable(){public void run(){if(getBool("online")&&!offerScreenOpen&&getField("activeTripId")==null&&!checkingOffer&&backend()!=null&&backend().hasSession()){checkingOffer=true;try{backend().rpc("driver_available_trips",new JSONObject().put("p_radius_km",7),new Backend.Callback(){public void ok(Object x){checkingOffer=false;JSONObject t=Backend.firstObject(x);if(t!=null&&!offerScreenOpen&&getBool("online"))screenOffer();}public void error(String m){checkingOffer=false;}});}catch(Exception e){checkingOffer=false;}}autoHandler.postDelayed(this,3500);}};
 
