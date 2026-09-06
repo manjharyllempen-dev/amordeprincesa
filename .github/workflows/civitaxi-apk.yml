@@ -1,13 +1,8 @@
-name: CiviMoto - Compilar APKs
+name: CiviMoto - Produccion Android
 
 on:
   push:
-    branches: [main, civimoto-beta]
-    paths:
-      - 'civitaxi/**'
-      - '.github/workflows/civitaxi-apk.yml'
-  pull_request:
-    branches: [main]
+    branches: [main, civimoto-beta, civimoto-production]
     paths:
       - 'civitaxi/**'
       - '.github/workflows/civitaxi-apk.yml'
@@ -40,24 +35,37 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Compilar tres APK RC1
+      - name: Mantener firma estable para APK de prueba
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: civimoto-android-sideload-signing-v1
+
+      - name: Crear firma si no existe
+        run: |
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkeypair -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=CiviMoto,O=CiviMoto,C=PE'
+          fi
+
+      - name: Compilar tres APK conectados
         working-directory: civitaxi
         run: gradle :usuario:assembleDebug :chofer:assembleDebug :administrador:assembleDebug --stacktrace
 
       - name: Preparar APKs
         run: |
           mkdir -p dist
-          cp civitaxi/usuario/build/outputs/apk/debug/usuario-debug.apk dist/CiviMoto-Pasajero-RC1.apk
-          cp civitaxi/chofer/build/outputs/apk/debug/chofer-debug.apk dist/CiviMoto-Chofer-RC1.apk
-          cp civitaxi/administrador/build/outputs/apk/debug/administrador-debug.apk dist/CiviMoto-Administrador-RC1.apk
+          cp civitaxi/usuario/build/outputs/apk/debug/usuario-debug.apk dist/CiviMoto-Pasajero-1.0-live.apk
+          cp civitaxi/chofer/build/outputs/apk/debug/chofer-debug.apk dist/CiviMoto-Chofer-1.0-live.apk
+          cp civitaxi/administrador/build/outputs/apk/debug/administrador-debug.apk dist/CiviMoto-Administrador-1.0-live.apk
           sha256sum dist/CiviMoto-*.apk > dist/CiviMoto-SHA256SUMS.txt
 
       - name: Publicar artefactos
         uses: actions/upload-artifact@v4
         with:
-          name: CiviMoto-3-APK-RC1
+          name: CiviMoto-3-APK-1.0-live
           path: |
-            dist/CiviMoto-Pasajero-RC1.apk
-            dist/CiviMoto-Chofer-RC1.apk
-            dist/CiviMoto-Administrador-RC1.apk
+            dist/CiviMoto-Pasajero-1.0-live.apk
+            dist/CiviMoto-Chofer-1.0-live.apk
+            dist/CiviMoto-Administrador-1.0-live.apk
             dist/CiviMoto-SHA256SUMS.txt
