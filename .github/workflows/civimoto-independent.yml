@@ -17,12 +17,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Aplicar logo oficial CiviMoto
+      - name: Aplicar logo oficial CiviMoto premium
         run: |
-          base64 -d civimoto/branding/logo_civimoto_384.b64 > /tmp/logo_civimoto.jpg
-          cp /tmp/logo_civimoto.jpg civimoto/usuario/src/main/res/drawable/logo_civimoto.jpg
-          cp /tmp/logo_civimoto.jpg civimoto/chofer/src/main/res/drawable/logo_civimoto.jpg
-          cp /tmp/logo_civimoto.jpg civimoto/administrador/src/main/res/drawable/logo_civimoto.jpg
+          cat civimoto/branding/logo_civimoto_384.b64 civimoto/branding/logo_civimoto_384_part2.b64 | base64 -d > /tmp/logo_civimoto.webp
+          file /tmp/logo_civimoto.webp
+          rm -f civimoto/usuario/src/main/res/drawable/logo_civimoto.jpg
+          rm -f civimoto/chofer/src/main/res/drawable/logo_civimoto.jpg
+          rm -f civimoto/administrador/src/main/res/drawable/logo_civimoto.jpg
+          cp /tmp/logo_civimoto.webp civimoto/usuario/src/main/res/drawable/logo_civimoto.webp
+          cp /tmp/logo_civimoto.webp civimoto/chofer/src/main/res/drawable/logo_civimoto.webp
+          cp /tmp/logo_civimoto.webp civimoto/administrador/src/main/res/drawable/logo_civimoto.webp
       - name: Java 17
         uses: actions/setup-java@v4
         with:
