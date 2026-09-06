@@ -25,22 +25,22 @@ public class DriverProfileActivity extends ReliableDriverActivity {
     private LinearLayout body(){return (LinearLayout)field("body");}
 
     @Override void screenOffer(){
-        finished=false;super.screenOffer();installPassengerCard();ui.removeCallbacks(profileLoop);ui.postDelayed(profileLoop,300);
+        finished=false;super.screenOffer();installPassengerCard();ui.removeCallbacks(profileLoop);ui.postDelayed(profileLoop,250);
     }
 
     @Override void screenTrip(){
-        finished=false;super.screenTrip();installPassengerCard();ui.removeCallbacks(profileLoop);ui.postDelayed(profileLoop,250);
+        finished=false;super.screenTrip();installPassengerCard();ui.removeCallbacks(profileLoop);ui.postDelayed(profileLoop,180);
     }
 
     @Override void loadTrip(){
         super.loadTrip();
-        if(!finished){installPassengerCard();ui.removeCallbacks(profileLoop);ui.postDelayed(profileLoop,200);}
+        if(!finished){installPassengerCard();ui.removeCallbacks(profileLoop);ui.postDelayed(profileLoop,150);}
     }
 
     private final Runnable profileLoop=new Runnable(){public void run(){
         if(finished||isFinishing())return;
         loadPassengerProfile();
-        ui.postDelayed(this,cachedPassenger==null?1200:5000);
+        ui.postDelayed(this,cachedPassenger==null?1000:4000);
     }};
 
     private String currentTripId(){
@@ -53,11 +53,12 @@ public class DriverProfileActivity extends ReliableDriverActivity {
         LinearLayout b=body();if(b==null)return;
         if(passengerCard!=null&&passengerCard.getParent()==b)return;
         passengerCard=card();
+        int pos=Math.min(1,b.getChildCount());
+        b.addView(passengerCard,pos);
         if(cachedPassenger!=null)renderPassenger(cachedPassenger);else{
             passengerCard.addView(tx("Pasajero",19,Color.WHITE,true));
             passengerCard.addView(tx("Cargando perfil del pasajero…",13,Color.rgb(176,180,190),false));
         }
-        int pos=Math.min(1,b.getChildCount());b.addView(passengerCard,pos);
     }
 
     private void loadPassengerProfile(){
@@ -70,7 +71,8 @@ public class DriverProfileActivity extends ReliableDriverActivity {
     }
 
     private void renderPassenger(JSONObject p){
-        installPassengerCard();LinearLayout b=body();if(b==null||passengerCard==null)return;passengerCard.removeAllViews();
+        installPassengerCard();if(passengerCard==null)return;
+        passengerCard.removeAllViews();
         passengerCard.addView(tx("Pasajero",19,Color.WHITE,true));
         LinearLayout top=new LinearLayout(this);top.setOrientation(LinearLayout.HORIZONTAL);top.setGravity(android.view.Gravity.CENTER_VERTICAL);
         ImageView face=photoBox();if(cachedFace!=null)face.setImageBitmap(cachedFace);top.addView(face,new LinearLayout.LayoutParams(dp(82),dp(82)));
