@@ -18,7 +18,6 @@ public class PassengerProfileActivity extends PassengerDocumentActivity {
     private JSONObject cachedDriver;
     private Bitmap cachedFace;
     private String lastTripProfileId;
-    private int attempts=0;
     private boolean finished=false;
 
     private Object field(String name){try{Field f=FlowActivity.class.getDeclaredField(name);f.setAccessible(true);return f.get(this);}catch(Exception e){return null;}}
@@ -26,11 +25,11 @@ public class PassengerProfileActivity extends PassengerDocumentActivity {
     private LinearLayout body(){return (LinearLayout)field("body");}
 
     @Override void screenTracking(){
-        finished=false;attempts=0;
+        finished=false;
         super.screenTracking();
         installDriverCard();
         ui.removeCallbacks(profileLoop);
-        ui.postDelayed(profileLoop,500);
+        ui.postDelayed(profileLoop,350);
     }
 
     @Override void renderTrip(JSONObject t){
@@ -43,39 +42,43 @@ public class PassengerProfileActivity extends PassengerDocumentActivity {
         if(driver!=null&&!driver.isEmpty()&&!"null".equals(driver)){
             installDriverCard();
             ui.removeCallbacks(profileLoop);
-            ui.postDelayed(profileLoop,100);
+            ui.postDelayed(profileLoop,80);
         }
     }
 
     private final Runnable profileLoop=new Runnable(){public void run(){
         if(finished||isFinishing())return;
         loadDriverProfile();
-        ui.postDelayed(this,cachedDriver==null?1500:5000);
+        ui.postDelayed(this,cachedDriver==null?1200:4000);
     }};
 
     private void installDriverCard(){
         LinearLayout b=body();if(b==null)return;
         if(driverCard!=null&&driverCard.getParent()==b)return;
         driverCard=card();
+        int pos=Math.min(1,b.getChildCount());
+        b.addView(driverCard,pos);
         if(cachedDriver!=null)renderDriver(cachedDriver);else{
             driverCard.addView(tx("Conductor asignado",19,Color.WHITE,true));
             driverCard.addView(tx("Esperando que un conductor acepte tu solicitud…",13,Color.rgb(176,180,190),false));
         }
-        int pos=Math.min(1,b.getChildCount());b.addView(driverCard,pos);
     }
 
     private void loadDriverProfile(){
         String tripId=field("tripId") instanceof String?(String)field("tripId"):null;
         if(tripId==null||tripId.isEmpty()||backend()==null)return;
-        if(lastTripProfileId==null||!lastTripProfileId.equals(tripId)){cachedDriver=null;cachedFace=null;lastTripProfileId=tripId;attempts=0;}
+        if(lastTripProfileId==null||!lastTripProfileId.equals(tripId)){
+            cachedDriver=null;cachedFace=null;lastTripProfileId=tripId;
+        }
         try{backend().rpc("cm_trip_driver_profile",new JSONObject().put("p_trip_id",tripId),new Backend.Callback(){
-            public void ok(Object x){JSONObject d=Backend.firstObject(x);if(d==null){attempts++;return;}cachedDriver=d;attempts=0;installDriverCard();renderDriver(d);}
-            public void error(String m){attempts++;}
-        });}catch(Exception e){attempts++;}
+            public void ok(Object x){JSONObject d=Backend.firstObject(x);if(d==null)return;cachedDriver=d;installDriverCard();renderDriver(d);}
+            public void error(String m){}
+        });}catch(Exception ignored){}
     }
 
     private void renderDriver(JSONObject d){
-        installDriverCard();if(driverCard==null)return;driverCard.removeAllViews();
+        installDriverCard();if(driverCard==null)return;
+        driverCard.removeAllViews();
         driverCard.addView(tx("Conductor asignado",19,Color.WHITE,true));
         LinearLayout top=new LinearLayout(this);top.setOrientation(LinearLayout.HORIZONTAL);top.setGravity(android.view.Gravity.CENTER_VERTICAL);
         ImageView face=photoBox(82);if(cachedFace!=null)face.setImageBitmap(cachedFace);top.addView(face,new LinearLayout.LayoutParams(dp(82),dp(82)));
